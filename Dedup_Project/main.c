@@ -1,9 +1,4 @@
-//
-//  main.c
-//  Dedup_Project
-//
-//  Created by Aditya Kotwal on 5/22/14.
-//
+
 
 #include <stdio.h>
 #include <string.h>
@@ -22,11 +17,15 @@
 #  include <openssl/md5.h>
 #endif
 
+/************ MACROs **************/
+
 #define MAX_FILE_NAME 1024
 //#define MAX_BUF_LEN 4*1024
 #define MAX_BUF_LEN 4
 #define RDLEN MAX_BUF_LEN
 #define CRYPT_LEN 16
+
+/*********** WRAPPERS FOR ERROR CHECKING ***************/
 
 // Error checking wrapper for fwrite
 void FWRITE(char *buf,char *msg, FILE* stream){
@@ -43,15 +42,23 @@ FILE* FOPEN(char *fileName, char* mode){
     return fp;
 }
 
+void FCLOSE(FILE *fp){
+    if(fclose(fp)!=0){
+        printf("Error closing file, %d\n",errno);
+    }
+}
+
+/************** ERROR CHECKING DONE ********************/
+
 int main(int argc, const char * argv[])
 {
     MD5_CTX c;
     char fileName[MAX_FILE_NAME];
     strcpy(fileName,FNAME);
     FILE *ip,*op;
-    char out[16*2+1];
+  
     unsigned long len;
-    unsigned char final[16];
+    unsigned char final[MD5_DIGEST_LENGTH];
     unsigned long offset=0;
     unsigned long offsetCorrection=0;
     char *buf = NULL, *buf_orig = NULL, *buf_read=NULL;
@@ -74,7 +81,6 @@ int main(int argc, const char * argv[])
     while((len=fread(buf,1,RDLEN,ip))!=0){
         MD5_Init(&c);
         offsetCorrection=len;
-        
         while(len>0){
             if(len > 512){
                 MD5_Update(&c, buf, 512);
@@ -86,8 +92,10 @@ int main(int argc, const char * argv[])
             }
         }
         MD5_Final(final, &c);
-        for (int n = 0; n < 16; ++n) {
-            snprintf(&(out[n*2]), 16*2, "%02x",final[n]);
+        char out[16*2+1];
+        strcpy(out,"");
+        for(int i=0;i<MD5_DIGEST_LENGTH;i++){
+            sprintf(out,"%s%02x",out,final[i]);
         }
         if(verbose){
             FWRITE(buf_read, "buf",op);
@@ -113,12 +121,8 @@ int main(int argc, const char * argv[])
         offset += offsetCorrection;
         buf=buf_orig;
     }
-    if(fclose(op)!=0){
-        printf("Error in closing file, %d\n",errno);
-    }
-    if(fclose(ip)!=0){
-        printf("Error in closing file, %d\n",errno);
-    }
-    
+    free(buf);
+    FCLOSE(op);
+    FCLOSE(ip);
     return 0;
 }
