@@ -49,7 +49,6 @@ int main(int argc, char * argv[])
     char source[MAX_FILE_NAME],destination[MAX_FILE_NAME];
     strcpy(source,SRC);
     strcpy(destination,DST);
-	printf("Argv[1] is %s\n",argv[1]);
     if(strcmp(argv[1],"1")==0){
         generate(source,destination);
     }
