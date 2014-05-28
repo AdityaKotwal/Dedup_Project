@@ -44,16 +44,16 @@ FILE* FOPEN(char *fileName, char* mode);
 void FCLOSE(FILE *fp);
 void combine();
 
-int main(int argc, const char * argv[])
+int main(int argc, char * argv[])
 {
-    
     char source[MAX_FILE_NAME],destination[MAX_FILE_NAME];
     strcpy(source,SRC);
     strcpy(destination,DST);
-    if(strcpy(argv[1],"1")==0){
+	printf("Argv[1] is %s\n",argv[1]);
+    if(strcmp(argv[1],"1")==0){
         generate(source,destination);
     }
-    else if(strcpy(argv[1], "2")==0){
+    else if(strcmp(argv[1],"2")==0){
         combine();
     }
     else{
@@ -75,7 +75,6 @@ void combine(){
         char *token = strtok(line, ",");
         getMD5(token,md5str,strlen(token));
         token = strtok(NULL,",");
-//        printf("New md5 is %s, and legth is %s",md5str,token);
         sprintf(str,"%s,%s",md5str,token);
         FWRITE(str, "Entry row", op);
     }

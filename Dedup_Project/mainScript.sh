@@ -1,6 +1,6 @@
 # Generate the primary database:
-g++ -o out Dedup_Project/main.c
-./Dedup_Project/out 1
+g++ -o out main.c
+./out 1
 echo "With 4kb blocks"
 #Transfer to SQL:
 mysql -u root --database="db" --execute="drop table newTable;"
@@ -44,7 +44,7 @@ rm /tmp/file1
 mysql -u root --database="db" --execute="select * into outfile '/tmp/file1' fields terminated by ',' lines terminated by '\n' from nextLevel;"
 
 #Generate new MD% hashes:
-./Dedup_Project/out 2
+./out 2
 echo "With 8kb blocks"
 mysql -u root --database="db" --execute="drop table nextLevelTable;"
 mysql -u root --database="db" --execute="create table nextLevelTable like nextLevel;"
