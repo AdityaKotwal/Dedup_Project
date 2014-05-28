@@ -20,7 +20,7 @@
 #define DST "/Users/akotwal/Desktop/Dedup_Project/outfile"
 #define verbose 0
 #define fileNameRequired 0
-
+#define MAX_COMBINED_HASH_LEN 1024*1024
 // MD5 Libraries:
 #if defined(__APPLE__)
 #  define COMMON_DIGEST_FOR_OPENSSL
@@ -67,8 +67,8 @@ void combine(){
     FILE *ip= FOPEN("/tmp/file1", "rb");
     FILE *op= FOPEN("/tmp/nextLevel","w");
     char *line;
-    char str[100];
-    size_t maxLen=100;
+    char str[MAX_COMBINED_HASH_LEN];
+    size_t maxLen=MAX_COMBINED_HASH_LEN;
     char md5str[MD5_DIGEST_LENGTH*2+1];
     while(getline(&line,&maxLen,ip)!=-1){
         char *token = strtok(line, ",");
