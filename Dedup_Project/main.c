@@ -12,11 +12,20 @@
  * into the database.
  */
 
+/***** RUNNING THIS CODE ********
+ 
+ This code is not to be run directly. Rather, The
+ script mainScript.sh calls this code with command
+ line argument "1" or "2"
+ 
+ 
+ ********************************/
+
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 #include <errno.h>
-#define SRC "/Users/akotwal/Desktop/Dedup_Project/duplicateFile"
+#define SRC "/Users/akotwal/Desktop/Dedup_Project/Dedup_Project/testFile1"
 #define DST "/Users/akotwal/Desktop/Dedup_Project/outfile"
 #define verbose 0
 #define fileNameRequired 0
@@ -25,7 +34,6 @@
 #if defined(__APPLE__)
 #  define COMMON_DIGEST_FOR_OPENSSL
 #  include <CommonCrypto/CommonDigest.h>
-#  define SHA1 CC_SHA1
 #else
 #  include <openssl/md5.h>
 #endif
@@ -34,15 +42,19 @@
 
 #define MAX_FILE_NAME 1024
 //#define MAX_BUF_LEN 4*1024
-#define MAX_BUF_LEN 4
+#define MAX_BUF_LEN 4  // <- Smaller segment size for testing
 #define RDLEN MAX_BUF_LEN
 
+/********* Function Declarations *************/
 void generate(char* source, char* destination);
 void getMD5(const char *string, char *md5buf, long len);
+void combine();
+
+/******** Wrappers for error checking **********/
 void FWRITE(char *buf,char *msg, FILE* stream);
 FILE* FOPEN(char *fileName, char* mode);
 void FCLOSE(FILE *fp);
-void combine();
+
 
 int main(int argc, char * argv[])
 {
@@ -63,6 +75,10 @@ int main(int argc, char * argv[])
 
 /**************** FUNCTION DEFINITIONS *********************/
 
+
+// Reads from new table which contains combined md5s and
+// summed of sizes of adjacent blocks and generated new
+// md5s
 void combine(){
     FILE *ip= FOPEN("/tmp/file1", "rb");
     FILE *op= FOPEN("/tmp/nextLevel","w");
@@ -79,6 +95,12 @@ void combine(){
     }
     return;
 }
+
+
+// Generate text dump by scanning the target location
+// defined in SRC macro and generate md5 hashes after
+// dividing the file into 4kB segments. The csv output
+// is dumped to the path passed in destination.
 
 void generate(char* source, char* destination){
     FILE *ip,*op;
@@ -180,6 +202,7 @@ FILE* FOPEN(char *fileName, char* mode){
     return fp;
 }
 
+// Error checking wrapper for fclose
 void FCLOSE(FILE *fp){
     if(fclose(fp)!=0){
         printf("Error closing file, %d\n",errno);
