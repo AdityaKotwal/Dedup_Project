@@ -63,7 +63,6 @@ void FWRITE(char *buf,char *msg, FILE* stream);
 FILE* FOPEN(char *fileName, char* mode);
 void FCLOSE(FILE *fp);
 
-
 enum {
 	WALK_OK = 0,
 	WALK_BADPATTERN,
@@ -78,7 +77,7 @@ enum {
 #define WS_DOTFILES	(1 << 2)	/* per unix convention, .file is hidden */
 #define WS_MATCHDIRS	(1 << 3)	/* if pattern is used on dir names too */
 
-int walk_recur(char *dname, regex_t *reg, int spec)
+int walk_recur(char *dname, regex_t *reg, int spec, void (*hashFile)(char *file))
 {
 	struct dirent *dent;
 	DIR *dir;
@@ -88,7 +87,7 @@ int walk_recur(char *dname, regex_t *reg, int spec)
 	int len = (int)strlen(dname);
 	if (len >= FILENAME_MAX - 1)
 		return WALK_NAMETOOLONG;
-    
+
 	strcpy(fn, dname);
 	fn[len++] = '/';
 
@@ -96,39 +95,39 @@ int walk_recur(char *dname, regex_t *reg, int spec)
 		warn("can't open %s", dname);
 		return WALK_BADIO;
 	}
-    
+
 	errno = 0;
 	while ((dent = readdir(dir))) {
 		if (!(spec & WS_DOTFILES) && dent->d_name[0] == '.')
 			continue;
 		if (!strcmp(dent->d_name, ".") || !strcmp(dent->d_name, ".."))
 			continue;
-       
+
 		strncpy(fn + len, dent->d_name, FILENAME_MAX - len);
-		
+
 		if (lstat(fn, &st) == -1) {
 			warn("Can't stat %s", fn);
 			res = WALK_BADIO;
 			continue;
 		}
-        
+
 		/* don't follow symlink unless told so */
 		if (S_ISLNK(st.st_mode) && !(spec & WS_FOLLOWLINK))
 			continue;
-        
+
 		/* will be false for symlinked dirs */
 		if (S_ISDIR(st.st_mode)) {
 			/* recursively follow dirs */
 			if ((spec & WS_RECURSIVE))
-				walk_recur(fn, reg, spec);
-            
+				walk_recur(fn, reg, spec,hashFile);
+
 			if (!(spec & WS_MATCHDIRS)) continue;
 		}
-		
+
 		//printf("%s\n",fn);
 		if(S_ISREG(st.st_mode)){
 			printf("Considering file %s\n",fn);
-			doit(fn);
+			hashFile(fn);
 			//printf("ISRED IS %d \n",S_IFREG);
 		}
 		/* pattern match */
@@ -141,14 +140,14 @@ int walk_recur(char *dname, regex_t *reg, int spec)
 	return res ? res : errno ? WALK_BADIO : WALK_OK;
 }
 
-int walk_dir(char *dname, char *pattern, int spec)
+int walk_dir(char *dname, char *pattern, int spec, void (*hashFile)(char *file))
 {
 	regex_t r;
 	int res;
 	if (regcomp(&r, pattern, REG_EXTENDED | REG_NOSUB))
 		return WALK_BADPATTERN;
 //	printf("%s",dname);
-	res = walk_recur(dname, &r, spec);
+	res = walk_recur(dname, &r, spec,hashFile);
 	regfree(&r);
     
 	return res;
@@ -157,7 +156,7 @@ int walk_dir(char *dname, char *pattern, int spec)
 int main()
 {
 	cleanFile(DST);
-	int r = walk_dir("/Users/akotwal/Documents", ".\\.c$", WS_DEFAULT|WS_MATCHDIRS);
+	int r = walk_dir("/Users/akotwal/Documents", ".\\.c$", WS_DEFAULT|WS_MATCHDIRS,doit);
 	switch(r) {
         case WALK_OK:		break;
         case WALK_BADIO:	err(1, "IO error");
