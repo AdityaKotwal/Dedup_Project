@@ -1,12 +1,11 @@
+#!/bin/sh
 
-# Run this script without any parameters
+#  createMasterTable.sh
+#  Dedup_Project
+#
+#  Created by Aditya Kotwal on 5/30/14.
+#  Copyright (c) 2014 Aditya Kotwal. All rights reserved.
 
-# Generate the primary database:
-g++ -o out main.c
-./out 1
-echo "With 4kb blocks"
-
-#Transfer to SQL:
 # Delete the table if already exists
 mysql -u root --database="db" --execute="drop table main_table;"
 # Create the table which will hold the MD5 values along with offsets and sizes
@@ -18,6 +17,3 @@ echo "Total number of md5 hashes:"
 mysql -u root --database="db" --execute="select count(md5) from main_table;"
 echo "Number of distinct md5 hashes:"
 mysql -u root --database="db" --execute="select count(distinct md5) from main_table;"
-
-# Combine segments and get new values
-#./multipleSegmentBlock.sh

@@ -11,7 +11,7 @@ mysql -u root --database="db" --execute="create table temp_table like main_table
 mysql -u root --database="db" --execute="insert into temp_table select * from main_table;"
 # Step 4: Create the table for to saved the md5s of combined segments
 mysql -u root --database="db" --execute="create table table_larger_segments (val TEXT,size BIGINT);"
-numOfSegsToCombine=8;
+numOfSegsToCombine=2;
 echo "Combining $numOfSegsToCombine consecutive hashes and rehashing..."
 condition=1
 # Loop which combines adjacent segments.

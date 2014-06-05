@@ -25,10 +25,16 @@
 #include <string.h>
 #include <stdlib.h>
 #include <errno.h>
-#define SRC "/Users/akotwal/Desktop/Dedup_Project/Dedup_Project/testFile1"
-#define DST "/Users/akotwal/Desktop/Dedup_Project/outfile"
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <unistd.h>
+#include <dirent.h>
+#include <regex.h>
+#include <err.h>
+//#define SRC "/tempInFile"
+#define DST "/Users/akotwal/Desktop/tempOutFile"
 #define verbose 0
-#define fileNameRequired 0
+#define fileNameRequired 1
 #define MAX_COMBINED_HASH_LEN 1024*1024
 // MD5 Libraries:
 #if defined(__APPLE__)
@@ -40,15 +46,17 @@
 
 /************ MACROs **************/
 
-#define MAX_FILE_NAME 1024
-//#define MAX_BUF_LEN 4*1024
-#define MAX_BUF_LEN 4  // <- Smaller segment size for testing
+#define MAX_FILE_NAME 1024*1024
+#define MAX_BUF_LEN 4*1024
+//#define MAX_BUF_LEN 4  // <- Smaller segment size for testing
 #define RDLEN MAX_BUF_LEN
 
 /********* Function Declarations *************/
 void generate(char* source, char* destination);
 void getMD5(const char *string, char *md5buf, long len);
 void combine();
+void doit(char *source);
+void cleanFile(char *file);
 
 /******** Wrappers for error checking **********/
 void FWRITE(char *buf,char *msg, FILE* stream);
@@ -56,29 +64,133 @@ FILE* FOPEN(char *fileName, char* mode);
 void FCLOSE(FILE *fp);
 
 
-int main(int argc, char * argv[])
+enum {
+	WALK_OK = 0,
+	WALK_BADPATTERN,
+	WALK_NAMETOOLONG,
+	WALK_BADIO,
+};
+
+#define WS_NONE		0
+#define WS_RECURSIVE	(1 << 0)
+#define WS_DEFAULT	WS_RECURSIVE
+#define WS_FOLLOWLINK	(1 << 1)	/* follow symlinks */
+#define WS_DOTFILES	(1 << 2)	/* per unix convention, .file is hidden */
+#define WS_MATCHDIRS	(1 << 3)	/* if pattern is used on dir names too */
+
+int walk_recur(char *dname, regex_t *reg, int spec)
 {
-    char source[MAX_FILE_NAME],destination[MAX_FILE_NAME];
-    strcpy(source,SRC);
+	struct dirent *dent;
+	DIR *dir;
+	struct stat st;
+	char fn[FILENAME_MAX];
+	int res = WALK_OK;
+	int len = (int)strlen(dname);
+	if (len >= FILENAME_MAX - 1)
+		return WALK_NAMETOOLONG;
+    
+	strcpy(fn, dname);
+	fn[len++] = '/';
+
+	if (!(dir = opendir(dname))) {
+		warn("can't open %s", dname);
+		return WALK_BADIO;
+	}
+    
+	errno = 0;
+	while ((dent = readdir(dir))) {
+		if (!(spec & WS_DOTFILES) && dent->d_name[0] == '.')
+			continue;
+		if (!strcmp(dent->d_name, ".") || !strcmp(dent->d_name, ".."))
+			continue;
+       
+		strncpy(fn + len, dent->d_name, FILENAME_MAX - len);
+		
+		if (lstat(fn, &st) == -1) {
+			warn("Can't stat %s", fn);
+			res = WALK_BADIO;
+			continue;
+		}
+        
+		/* don't follow symlink unless told so */
+		if (S_ISLNK(st.st_mode) && !(spec & WS_FOLLOWLINK))
+			continue;
+        
+		/* will be false for symlinked dirs */
+		if (S_ISDIR(st.st_mode)) {
+			/* recursively follow dirs */
+			if ((spec & WS_RECURSIVE))
+				walk_recur(fn, reg, spec);
+            
+			if (!(spec & WS_MATCHDIRS)) continue;
+		}
+		
+		//printf("%s\n",fn);
+		if(S_ISREG(st.st_mode)){
+			printf("Considering file %s\n",fn);
+			doit(fn);
+			//printf("ISRED IS %d \n",S_IFREG);
+		}
+		/* pattern match */
+		if (!regexec(reg, fn, 0, 0, 0)){
+		//	puts(fn);
+		}
+	}
+
+	if (dir) closedir(dir);
+	return res ? res : errno ? WALK_BADIO : WALK_OK;
+}
+
+int walk_dir(char *dname, char *pattern, int spec)
+{
+	regex_t r;
+	int res;
+	if (regcomp(&r, pattern, REG_EXTENDED | REG_NOSUB))
+		return WALK_BADPATTERN;
+//	printf("%s",dname);
+	res = walk_recur(dname, &r, spec);
+	regfree(&r);
+    
+	return res;
+}
+
+int main()
+{
+	cleanFile(DST);
+	int r = walk_dir("/Users/akotwal/Documents", ".\\.c$", WS_DEFAULT|WS_MATCHDIRS);
+	switch(r) {
+        case WALK_OK:		break;
+        case WALK_BADIO:	err(1, "IO error");
+        case WALK_BADPATTERN:	err(1, "Bad pattern");
+        case WALK_NAMETOOLONG:	err(1, "Filename too long");
+        default:
+            err(1, "Unknown error?");
+	}
+	return 0;
+}
+
+
+void doit(char *source)
+{
+	printf("%s\n",source);
+   	char destination[MAX_FILE_NAME];
     strcpy(destination,DST);
-    if(strcmp(argv[1],"1")==0){
-        generate(source,destination);
-    }
-    else if(strcmp(argv[1],"2")==0){
-        combine();
+    FILE *fp=NULL;
+    if((fp=fopen(source, "rb"))==NULL){
+        return;
     }
     else{
-        printf("Wrong input");
+        FCLOSE(fp);
     }
-    return 0;
+    generate(source,destination);
+    return;
 }
 
 /**************** FUNCTION DEFINITIONS *********************/
-
-
 // Reads from new table which contains combined md5s and
 // summed of sizes of adjacent blocks and generated new
 // md5s
+
 void combine(){
     FILE *ip= FOPEN("/tmp/file1", "rb");
     FILE *op= FOPEN("/tmp/nextLevel","w");
@@ -97,6 +209,13 @@ void combine(){
 }
 
 
+void cleanFile(char *file){
+	FILE *fp=NULL;
+	fp=FOPEN(file,"wb");
+	FCLOSE(fp);
+	return;
+}
+
 // Generate text dump by scanning the target location
 // defined in SRC macro and generate md5 hashes after
 // dividing the file into 4kB segments. The csv output
@@ -104,8 +223,9 @@ void combine(){
 
 void generate(char* source, char* destination){
     FILE *ip,*op;
+	printf("File to work on : %s\n",source);
     ip = FOPEN(source,"rb");
-    op = FOPEN(destination,"wb");
+    op = FOPEN(destination,"ab");
     unsigned long len;
     
     unsigned long offset=0;
@@ -166,6 +286,7 @@ void generate(char* source, char* destination){
 void getMD5(const char *string, char *md5buf, long len){
     unsigned char final[MD5_DIGEST_LENGTH];
     MD5_CTX c;
+    int i;
     MD5_Init(&c);
     char *str = (char*) string;
     while(len>0){
@@ -180,7 +301,7 @@ void getMD5(const char *string, char *md5buf, long len){
     }
     MD5_Final(final, &c);
     strcpy(md5buf,"");
-    for(int i=0;i<MD5_DIGEST_LENGTH;i++){
+    for(i=0;i<MD5_DIGEST_LENGTH;i++){
         sprintf(md5buf,"%s%02x",md5buf,final[i]);
     }
     return;
